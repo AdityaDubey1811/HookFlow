@@ -10,6 +10,10 @@ import com.hookflow.dto.EventResponse;
 import java.util.UUID;
 import com.hookflow.entity.Event;
 import org.springframework.transaction.annotation.Transactional;
+import com.hookflow.entity.WebhookEndpoint;
+import java.util.List;
+import com.hookflow.entity.Delivery;
+import jakarta.persistence.EntityManager;
 
 @Service
 public class EventService {
@@ -17,16 +21,19 @@ public class EventService {
     private final WebhookEndpointRepository webhookEndpointRepository;
     private final DeliveryRepository deliveryRepository;
     private final ObjectMapper objectMapper;
+    private final EntityManager entityManager;
     public EventService(
             EventRepository eventRepository,
             WebhookEndpointRepository webhookEndpointRepository,
             DeliveryRepository deliveryRepository,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            EntityManager entityManager
     ){
         this.eventRepository = eventRepository;
         this.webhookEndpointRepository = webhookEndpointRepository;
         this.deliveryRepository = deliveryRepository;
         this.objectMapper = objectMapper;
+        this.entityManager = entityManager;
     }
     private void validateJsonPayload(String payload) {
         try {
@@ -35,6 +42,17 @@ public class EventService {
             throw new IllegalArgumentException(
                     "Payload must contain valid JSON"
             );
+        }
+    }
+    private boolean areJsonPayloadsEqual(String first, String second) {
+        try {
+            var firstJson = objectMapper.readTree(first);
+            var secondJson = objectMapper.readTree(second);
+
+            return firstJson.equals(secondJson);
+
+        } catch (JacksonException | IllegalArgumentException exception) {
+            return false;
         }
     }
     @Transactional
@@ -49,7 +67,10 @@ public class EventService {
 
             if (existingEvent != null) {
                 if (!existingEvent.getEventType().equals(request.eventType())
-                        || !existingEvent.getPayload().equals(request.payload())) {
+                        || !areJsonPayloadsEqual(
+                        existingEvent.getPayload(),
+                        request.payload()
+                )) {
                     throw new IllegalArgumentException(
                             "Idempotency key was already used with a different event"
                     );
@@ -70,7 +91,22 @@ public class EventService {
                 request.payload(),
                 request.idempotencyKey()
         );
-        Event savedEvent = eventRepository.save(event);
+        Event savedEvent = eventRepository.saveAndFlush(event);
+        entityManager.refresh(savedEvent);
+        List<WebhookEndpoint> endpoints =
+                webhookEndpointRepository.findActiveSubscribedEndpoints(
+                        savedEvent.getEventType()
+                );
+        List<Delivery> deliveries = endpoints.stream()
+                .map(endpoint -> new Delivery(
+                        UUID.randomUUID(),
+                        savedEvent,
+                        endpoint
+                ))
+                .toList();
+        if (!deliveries.isEmpty()) {
+            deliveryRepository.saveAll(deliveries);
+        }
         return new EventResponse(
                 savedEvent.getId(),
                 savedEvent.getEventType(),

@@ -69,4 +69,50 @@ public class Delivery {
         this.status = DeliveryStatus.PENDING;
         this.attemptCount = 0;
     }
+    public UUID getId() {
+        return id;
+    }
+    public Event getEvent() {
+        return event;
+    }
+    public WebhookEndpoint getEndpoint() {
+        return endpoint;
+    }
+    public DeliveryStatus getStatus() {
+        return status;
+    }
+    public int getAttemptCount() {
+        return attemptCount;
+    }
+    public OffsetDateTime getNextAttemptAt() {
+        return nextAttemptAt;
+    }
+    public Integer getLastHttpStatus() {
+        return lastHttpStatus;
+    }
+    public String getLastError() {
+        return lastError;
+    }
+    public void markAsProcessing() {
+        this.status = DeliveryStatus.PROCESSING;
+    }
+    public void markAsDelivered() {
+        this.status = DeliveryStatus.DELIVERED;
+    }
+    public void markAsFailed(Integer httpStatus, String error) {
+        this.status = DeliveryStatus.FAILED;
+        this.lastHttpStatus = httpStatus;
+        this.lastError = error;
+    }
+    public void incrementAttemptCount() {
+        this.attemptCount++;
+    }
+    public void scheduleRetry(OffsetDateTime retryAt, String error) {
+        this.status = DeliveryStatus.PENDING;
+        this.nextAttemptAt = retryAt;
+        this.lastError = error;
+    }
+    public void clearRetrySchedule() {
+        this.nextAttemptAt = null;
+    }
 }

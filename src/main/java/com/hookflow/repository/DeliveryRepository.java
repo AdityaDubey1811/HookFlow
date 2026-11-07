@@ -16,18 +16,20 @@ public interface DeliveryRepository extends JpaRepository<Delivery,UUID>{
     List<Delivery> findByStatusAndNextAttemptAtIsNull(
             DeliveryStatus status
     );
-    @Query("""
-        SELECT d FROM Delivery d
-        WHERE d.status = :status
-        AND (
-            d.nextAttemptAt IS NULL
-            OR d.nextAttemptAt <= :currentTime
-        )
-        """)
+    @Query(value = """
+    SELECT * FROM delivery
+    WHERE status = 'PENDING'
+    AND (
+        next_attempt_at IS NULL
+        OR next_attempt_at <= :currentTime
+    )
+    ORDER BY created_at ASC
+    LIMIT :batchSize
+    FOR UPDATE SKIP LOCKED
+    """, nativeQuery = true)
     List<Delivery> findReadyDeliveries(
-            @Param("status") DeliveryStatus status,
             @Param("currentTime") OffsetDateTime currentTime,
-            Pageable pageable
+            @Param("batchSize") int batchSize
     );
 
 }

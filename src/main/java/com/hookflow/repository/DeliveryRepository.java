@@ -8,6 +8,7 @@ import java.util.List;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 public interface DeliveryRepository extends JpaRepository<Delivery,UUID>{
     List<Delivery> findByStatusAndNextAttemptAtLessThanEqual(
             DeliveryStatus status,
@@ -16,6 +17,7 @@ public interface DeliveryRepository extends JpaRepository<Delivery,UUID>{
     List<Delivery> findByStatusAndNextAttemptAtIsNull(
             DeliveryStatus status
     );
+    @EntityGraph(attributePaths = {"event", "endpoint"})
     @Query(value = """
     SELECT * FROM delivery
     WHERE status = 'PENDING'

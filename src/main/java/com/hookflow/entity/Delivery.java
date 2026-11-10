@@ -115,4 +115,7 @@ public class Delivery {
     public void clearRetrySchedule() {
         this.nextAttemptAt = null;
     }
+    public void setLastHttpStatus(Integer lastHttpStatus) {
+        this.lastHttpStatus = lastHttpStatus;
+    }
 }

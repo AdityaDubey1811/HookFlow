@@ -4,13 +4,21 @@ import org.springframework.web.client.RestClient;
 import org.springframework.http.MediaType;
 import com.hookflow.entity.Delivery;
 import com.hookflow.repository.DeliveryRepository;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
+import org.springframework.transaction.annotation.Transactional;
+import com.hookflow.service.DeliveryPersistenceService;
 @Service
 public class WebhookDeliveryService {
     private final RestClient restClient;
     private final DeliveryRepository deliveryRepository;
-    public WebhookDeliveryService(RestClient restClient,DeliveryRepository deliveryRepository){
+    private final DeliveryPersistenceService deliveryPersistenceService;
+    public WebhookDeliveryService(RestClient restClient,
+                                  DeliveryRepository deliveryRepository,
+                                  DeliveryPersistenceService deliveryPersistenceService){
         this.restClient = restClient;
         this.deliveryRepository = deliveryRepository;
+        this.deliveryPersistenceService = deliveryPersistenceService;
     }
     public int sendWebhook(String targetUrl, String payload) {
 
@@ -32,10 +40,22 @@ public class WebhookDeliveryService {
     }
     public void deliverAndMarkSuccess(Delivery delivery) {
         delivery.incrementAttemptCount();
-        int httpStatus = deliver(delivery);
-
-        delivery.markAsDelivered();
-        delivery.setLastHttpStatus(httpStatus);
-        deliveryRepository.save(delivery);
+        try {
+            int httpStatus = deliver(delivery);
+            delivery.markAsDelivered();
+            delivery.setLastHttpStatus(httpStatus);
+        } catch (RestClientResponseException ex) {
+            delivery.markAsFailed(
+                    ex.getStatusCode().value(),
+                    ex.getMessage()
+            );
+        } catch (RestClientException ex) {
+            delivery.markAsFailed(
+                    null,
+                    ex.getMessage()
+            );
+        }
+        deliveryPersistenceService.saveDeliveryResult(delivery);
     }
+
 }

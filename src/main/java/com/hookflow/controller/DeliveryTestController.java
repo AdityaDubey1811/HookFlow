@@ -22,4 +22,10 @@ public class DeliveryTestController {
                 .map(Delivery::getId)
                 .toList();
     }
+    @PostMapping("/process")
+    public void processBatch(
+            @RequestParam(defaultValue = "10") int batchSize) {
+
+        deliveryProcessingService.processBatch(batchSize);
+    }
 }

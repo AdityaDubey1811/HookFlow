@@ -8,7 +8,6 @@ import java.util.List;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.EntityGraph;
 public interface DeliveryRepository extends JpaRepository<Delivery,UUID>{
     List<Delivery> findByStatusAndNextAttemptAtLessThanEqual(
             DeliveryStatus status,
@@ -17,7 +16,7 @@ public interface DeliveryRepository extends JpaRepository<Delivery,UUID>{
     List<Delivery> findByStatusAndNextAttemptAtIsNull(
             DeliveryStatus status
     );
-    @EntityGraph(attributePaths = {"event", "endpoint"})
+
     @Query(value = """
     SELECT * FROM delivery
     WHERE status = 'PENDING'
@@ -33,5 +32,14 @@ public interface DeliveryRepository extends JpaRepository<Delivery,UUID>{
             @Param("currentTime") OffsetDateTime currentTime,
             @Param("batchSize") int batchSize
     );
-
+    @Query("""
+    SELECT d FROM Delivery d
+    JOIN FETCH d.event
+    JOIN FETCH d.endpoint
+    WHERE d.id IN :ids
+    ORDER BY d.createdAt ASC
+    """)
+    List<Delivery> findWithEventAndEndpointByIdIn(
+            @Param("ids") List<UUID> ids
+    );
 }

@@ -7,11 +7,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.List;
+import com.hookflow.service.WebhookDeliveryService;
+import java.util.UUID;
 @Service
 public class DeliveryProcessingService {
     private final DeliveryRepository deliveryRepository;
-    public DeliveryProcessingService(DeliveryRepository deliveryRepository){
+    private final WebhookDeliveryService webhookDeliveryService;
+    public DeliveryProcessingService(DeliveryRepository deliveryRepository,WebhookDeliveryService webhookDeliveryService){
         this.deliveryRepository = deliveryRepository;
+        this.webhookDeliveryService = webhookDeliveryService;
     }
     @Transactional
     public List<Delivery> fetchReadyDeliveries(int batchSize){
@@ -37,6 +41,20 @@ public class DeliveryProcessingService {
         for (Delivery delivery : deliveries) {
             delivery.markAsProcessing();
         }
-        return deliveryRepository.saveAll(deliveries);
+        deliveryRepository.saveAll(deliveries);
+        if (deliveries.isEmpty()) {
+            return deliveries;
+        }
+        List<UUID> deliveryIds = deliveries.stream()
+                .map(Delivery::getId)
+                .toList();
+        return deliveryRepository.findWithEventAndEndpointByIdIn(deliveryIds);
+    }
+    public void processBatch(int batchSize) {
+        List<Delivery> deliveries =
+                fetchAndMarkReadyDeliveries(batchSize);
+        for (Delivery delivery : deliveries) {
+            webhookDeliveryService.deliverAndMarkSuccess(delivery);
+        }
     }
 }

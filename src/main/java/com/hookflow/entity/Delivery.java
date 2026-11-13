@@ -103,6 +103,7 @@ public class Delivery {
         this.status = DeliveryStatus.FAILED;
         this.lastHttpStatus = httpStatus;
         this.lastError = error;
+        this.nextAttemptAt = null;
     }
     public void incrementAttemptCount() {
         this.attemptCount++;

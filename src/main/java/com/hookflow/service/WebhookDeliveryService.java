@@ -8,17 +8,22 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.transaction.annotation.Transactional;
 import com.hookflow.service.DeliveryPersistenceService;
+import com.hookflow.config.RetryConfig;
+import java.time.OffsetDateTime;
 @Service
 public class WebhookDeliveryService {
     private final RestClient restClient;
     private final DeliveryRepository deliveryRepository;
     private final DeliveryPersistenceService deliveryPersistenceService;
+    private final RetryConfig retryConfig;
     public WebhookDeliveryService(RestClient restClient,
                                   DeliveryRepository deliveryRepository,
-                                  DeliveryPersistenceService deliveryPersistenceService){
+                                  DeliveryPersistenceService deliveryPersistenceService,
+                                  RetryConfig retryConfig){
         this.restClient = restClient;
         this.deliveryRepository = deliveryRepository;
         this.deliveryPersistenceService = deliveryPersistenceService;
+        this.retryConfig = retryConfig;
     }
     public int sendWebhook(String targetUrl, String payload) {
 
@@ -45,17 +50,25 @@ public class WebhookDeliveryService {
             delivery.markAsDelivered();
             delivery.setLastHttpStatus(httpStatus);
         } catch (RestClientResponseException ex) {
-            delivery.markAsFailed(
-                    ex.getStatusCode().value(),
-                    ex.getMessage()
-            );
+            handleFailure(delivery, ex.getStatusCode().value(), ex.getMessage());
         } catch (RestClientException ex) {
-            delivery.markAsFailed(
-                    null,
-                    ex.getMessage()
-            );
+            handleFailure(delivery, null, ex.getMessage());
         }
         deliveryPersistenceService.saveDeliveryResult(delivery);
     }
-
+    private void handleFailure(
+            Delivery delivery,
+            Integer httpStatus,
+            String error) {
+        delivery.markAsFailed(httpStatus, error);
+        if (delivery.getAttemptCount() < RetryConfig.MAX_ATTEMPTS) {
+            long delay = retryConfig.calculateRetryDelaySeconds(
+                    delivery.getAttemptCount()
+            );
+            delivery.scheduleRetry(
+                    OffsetDateTime.now().plusSeconds(delay),
+                    error
+            );
+        }
+    }
 }
